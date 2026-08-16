@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>tiny-vLLM · Comparative Inference Lab</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#070913; --panel:#0f132a; --panel2:#131838; --border:rgba(255,255,255,.08);
+  --txt:#f3f4f6; --dim:#9ca3af; --dim2:#6b7280;
+  --cyan:#06b6d4; --purple:#a855f7; --green:#10b981; --yellow:#f59e0b; --red:#ef4444; --blue:#3b82f6; --pink:#ec4899;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--txt);font-family:'Plus Jakarta Sans',sans-serif;
+  min-height:100vh;background-image:radial-gradient(circle at 10% 15%,rgba(104,56,248,.13) 0%,transparent 45%),
+                   radial-gradient(circle at 90% 85%,rgba(6,182,212,.10) 0%,transparent 45%)}
+header{display:flex;justify-content:space-between;align-items:center;padding:1rem 1.8rem;border-bottom:1px solid var(--border);position:sticky;top:0;background:rgba(7,9,19,.85);backdrop-filter:blur(12px);z-index:100}
+.logo h1{font-size:1.4rem;font-weight:700;background:linear-gradient(135deg,var(--cyan),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:-.03em}
+.logo p{color:var(--dim);font-size:.72rem}
+nav{display:flex;gap:.3rem}
+nav button{background:transparent;border:1px solid transparent;color:var(--dim);padding:.45rem .9rem;border-radius:8px;cursor:pointer;font-family:inherit;font-size:.82rem;font-weight:500;transition:all .15s}
+nav button:hover{color:var(--txt);background:rgba(255,255,255,.04)}
+nav button.active{color:var(--txt);background:rgba(6,182,212,.12);border-color:rgba(6,182,212,.3)}
+.badge{background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.3);color:var(--green);padding:.35rem .8rem;border-radius:9999px;font-size:.72rem;font-weight:600;display:flex;align-items:center;gap:.4rem}
+.dot{width:7px;height:7px;border-radius:50%;animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{transform:scale(.9);opacity:.6}50%{transform:scale(1.2);opacity:1}}
+
+main{padding:1.5rem 1.8rem;max-width:1500px;margin:0 auto}
+.page{display:none}.page.active{display:block;animation:fade .25s}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1}}
+
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:1.2rem;margin-bottom:1.2rem;box-shadow:0 8px 28px -12px rgba(0,0,0,.4)}
+.ptitle{font-size:1rem;font-weight:600;display:flex;justify-content:space-between;align-items:center;margin-bottom:.9rem}
+.psub{color:var(--dim);font-size:.74rem;font-weight:400}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:1.2rem}
+@media(max-width:1000px){.grid2,.grid3{grid-template-columns:1fr}}
+
+/* tooltips */
+[data-tip]{position:relative;cursor:help;border-bottom:1px dotted rgba(255,255,255,.22)}
+[data-tip]:hover::after{content:attr(data-tip);position:absolute;bottom:130%;left:50%;transform:translateX(-50%);
+  background:#1a1f3a;color:#e5e7eb;padding:.55rem .8rem;border-radius:8px;font-size:.72rem;font-weight:400;
+  white-space:pre;line-height:1.45;z-index:9999;box-shadow:0 8px 24px rgba(0,0,0,.5);border:1px solid var(--border);
+  min-width:210px;max-width:340px;text-align:left;pointer-events:none}
+[data-tip]:hover::before{content:"";position:absolute;bottom:118%;left:50%;transform:translateX(-50%);border:6px solid transparent;border-top-color:#1a1f3a;z-index:9999}
+
+/* config */
+.cfgbar{display:flex;flex-wrap:wrap;gap:.9rem;align-items:flex-end}
+.cfg{display:flex;flex-direction:column;gap:.25rem}
+.cfg label{font-size:.66rem;color:var(--dim);text-transform:uppercase;letter-spacing:.04em;font-weight:600}
+select,input[type=number],input[type=text]{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:7px;color:var(--txt);padding:.45rem .6rem;font-family:inherit;font-size:.82rem;outline:none}
+select:focus,input:focus{border-color:var(--cyan)}
+.btn{background:linear-gradient(135deg,var(--cyan),var(--purple));color:#fff;border:none;border-radius:7px;padding:.5rem 1rem;font-weight:600;cursor:pointer;font-size:.82rem;transition:opacity .15s}
+.btn:hover{opacity:.88}.btn.ghost{background:rgba(255,255,255,.05);border:1px solid var(--border)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* metric cards */
+.mrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:.8rem}
+.mc{background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:11px;padding:.85rem;text-align:center;display:flex;flex-direction:column;gap:.25rem}
+.mc .v{font-size:1.25rem;font-weight:700;font-family:'JetBrains Mono',monospace;background:linear-gradient(135deg,#fff,var(--dim));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.mc .l{font-size:.64rem;color:var(--dim);text-transform:uppercase;letter-spacing:.04em}
+.mc .v.tag{font-size:.85rem}
+
+canvas{width:100%;height:150px;display:block;background:rgba(0,0,0,.18);border-radius:9px;border:1px solid var(--border)}
+
+/* slots */
+.slots{display:flex;flex-direction:column;gap:.55rem}
+.slot{background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:10px;padding:.8rem;display:flex;flex-direction:column;gap:.45rem}
+.slot.active{border-color:rgba(6,182,212,.4)}
+.sh{display:flex;justify-content:space-between;align-items:center;font-size:.78rem;gap:.5rem}
+.sid{font-family:'JetBrains Mono',monospace;font-weight:500}
+.sp{color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:42%}
+.bar{width:100%;height:5px;background:rgba(255,255,255,.05);border-radius:9999px;overflow:hidden}
+.bar>i{display:block;height:100%;border-radius:9999px;transition:width .3s}
+.sf{display:flex;justify-content:space-between;font-size:.68rem;color:var(--dim)}
+.empty{border:1px dashed var(--border);height:46px;border-radius:10px;display:flex;justify-content:center;align-items:center;color:rgba(255,255,255,.2);font-size:.78rem}
+
+/* kv bars */
+.kvrow{display:flex;align-items:center;gap:.6rem;font-size:.73rem;margin-bottom:.45rem}
+.kvrow .kid{width:80px;font-family:'JetBrains Mono',monospace;color:var(--cyan);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kvtrack{flex:1;height:12px;background:rgba(255,255,255,.04);border-radius:5px;overflow:hidden}
+.kvtrack>i{display:block;height:100%;background:linear-gradient(90deg,var(--green),var(--cyan));transition:width .3s}
+.kvrow .kvb{width:75px;text-align:right;color:var(--dim);font-family:'JetBrains Mono',monospace}
+
+.wlist{display:flex;flex-wrap:wrap;gap:.4rem;max-height:80px;overflow-y:auto}
+.pill{background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);color:var(--yellow);padding:.3rem .6rem;border-radius:7px;font-size:.7rem;font-family:'JetBrains Mono',monospace;display:flex;align-items:center;gap:.35rem}
+
+/* gantt */
+#gantt{display:flex;flex-direction:column;gap:.35rem;max-height:340px;overflow-y:auto}
+.grow{display:flex;align-items:center;gap:.5rem;font-size:.7rem}
+.grow .gid{width:85px;font-family:'JetBrains Mono',monospace;color:var(--purple);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gtrack{flex:1;height:16px;background:rgba(255,255,255,.04);border-radius:4px;position:relative;overflow:hidden}
+.gseg{position:absolute;top:0;height:100%}
+
+/* timeline */
+.tl{display:flex;gap:.6rem;overflow-x:auto;padding:.4rem 0;min-height:110px;scroll-behavior:smooth}
+.tstep{min-width:72px;background:rgba(255,255,255,.01);border:1px solid var(--border);border-radius:9px;padding:.45rem;display:flex;flex-direction:column;gap:.25rem;align-items:center}
+.th{font-size:.66rem;color:var(--dim);font-weight:600;font-family:'JetBrains Mono',monospace;border-bottom:1px solid var(--border);width:100%;text-align:center;padding-bottom:.2rem}
+.tbatch{display:flex;flex-direction:column;gap:.2rem;width:100%;align-items:center;min-height:48px}
+.tp{width:100%;padding:.12rem .25rem;font-size:.6rem;font-family:'JetBrains Mono',monospace;border-radius:3px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
+
+/* tables */
+table{width:100%;border-collapse:collapse;font-size:.8rem}
+th,td{padding:.55rem .4rem;text-align:center;border-bottom:1px solid var(--border)}
+th{color:var(--dim);font-weight:600;text-transform:uppercase;font-size:.64rem;letter-spacing:.04em}
+td.win{color:var(--green);font-weight:700}
+td.win-bg{background:rgba(16,185,129,.08)}
+
+/* sweep chart */
+.sweep-result{margin-top:.8rem}
+.cb-row{display:flex;align-items:center;gap:.6rem;font-size:.76rem;margin-bottom:.4rem}
+.cb-row .cm{width:90px;color:var(--dim)}
+.cb-track{flex:1;height:18px;background:rgba(255,255,255,.04);border-radius:4px;overflow:hidden}
+.cb-track>i{display:block;height:100%;border-radius:4px}
+.cb-row .cv{width:75px;text-align:right;font-family:'JetBrains Mono',monospace}
+
+.out{border:1px solid var(--border);border-radius:10px;background:rgba(0,0,0,.2);padding:.8rem;min-height:70px;max-height:130px;overflow-y:auto}
+.out-h{display:flex;justify-content:space-between;font-size:.7rem;color:var(--dim);border-bottom:1px solid rgba(255,255,255,.05);padding-bottom:.3rem;margin-bottom:.4rem}
+.out-t{font-family:'JetBrains Mono',monospace;font-size:.8rem;line-height:1.5;white-space:pre-wrap;color:#e5e7eb}
+.out-t.streaming::after{content:"▊";color:var(--cyan);animation:blink .8s infinite}
+@keyframes blink{50%{opacity:0}}
+
+.feat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1rem}
+.feat{background:var(--panel2);border:1px solid var(--border);border-radius:11px;padding:1rem}
+.feat h3{font-size:.88rem;font-weight:600;margin-bottom:.4rem;display:flex;align-items:center;gap:.4rem}
+.feat .ic{width:28px;height:28px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:.9rem;flex-shrink:0}
+.feat p{font-size:.76rem;color:var(--dim);line-height:1.5}
+.tag{display:inline-block;font-size:.62rem;padding:.1rem .4rem;border-radius:4px;font-weight:600;text-transform:uppercase}
+.tag.on{background:rgba(16,185,129,.15);color:var(--green)}.tag.off{background:rgba(107,114,128,.15);color:var(--dim2)}
+.row{display:flex;gap:1rem;align-items:flex-end;flex-wrap:wrap;margin-bottom:.6rem}
+.note{font-size:.74rem;color:var(--dim);line-height:1.5;padding:.7rem .9rem;background:rgba(6,182,212,.05);border-left:3px solid var(--cyan);border-radius:0 7px 7px 0}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo"><h1>tiny-vLLM</h1><p>Comparative Inference Lab</p></div>
+  <nav id="nav">
+    <button data-page="live" class="active">Live</button>
+    <button data-page="compare">Compare</button>
+    <button data-page="sweeps">Sweeps</button>
+    <button data-page="phases">Phases</button>
+    <button data-page="about">About</button>
+  </nav>
+  <div class="badge"><div class="dot" style="background:var(--green)"></div><span id="hdr">Engine Active</span></div>
+</header>
+
+<main>
+<!-- ===================== LIVE PAGE ===================== -->
+<section class="page active" id="pg-live">
+  <div class="panel">
+    <div class="ptitle"><span data-tip="Runtime configuration of the inference engine. Every setting is live-tunable — the engine and (if needed) the model reload on Apply.">Engine Configuration</span>
+      <span class="psub">all settings live-tunable</span></div>
+    <div class="cfgbar">
+      <div class="cfg"><label data-tip="Main model used for generation (the verifier in speculative decoding). The 360M model is the default; the 135M is also the speculative draft model.">Main Model</label>
+        <select id="cfg-model">
+          <option value="HuggingFaceTB/SmolLM2-360M-Instruct" selected>SmolLM2-360M</option>
+          <option value="HuggingFaceTB/SmolLM2-135M-Instruct">SmolLM2-135M</option>
+          <option value="HuggingFaceTB/SmolLM2-1.7B-Instruct">SmolLM2-1.7B</option>
+        </select></div>
+      <div class="cfg"><label data-tip="Serving mode controls how requests are batched.&#10;• sequential: batch size 1, one request at a time.&#10;• static: a fixed group runs to completion before any new request is admitted.&#10;• continuous: free slots refill the moment any request finishes (vLLM-style).">Mode</label>
+        <select id="cfg-mode"><option>sequential</option><option>static</option><option selected>continuous</option></select></div>
+      <div class="cfg"><label data-tip="Queue ordering policy.&#10;• fifo: first-in-first-out.&#10;• sjf: shortest-job-first (fewest max_tokens first) lowers avg wait.&#10;• priority: highest priority field first.">Scheduler</label>
+        <select id="cfg-sched"><option value="fifo" selected>fifo</option><option value="sjf">sjf</option><option value="priority">priority</option></select></div>
+      <div class="cfg"><label data-tip="Maximum number of requests decoded together in a single forward pass.">Max Batch</label><input type="number" id="cfg-batch" value="4" min="1" max="8"></div>
+      <div class="cfg"><label data-tip="Numerical precision of model weights.&#10;• fp32: full precision baseline.&#10;• fp16: half precision, ~half the memory, faster on MPS.&#10;• int8: dynamic 8-bit quantization of Linear layers.">Precision</label>
+        <select id="cfg-prec"><option value="fp32" selected>fp32</option><option value="fp16">fp16</option><option value="int8">int8</option></select></div>
+      <div class="cfg"><label data-tip="Radix-style shared-prefix KV cache. Reuses keys/values across prompts that share a common prefix (e.g. the same system prompt) — skips re-prefilling the shared head.">Prefix Cache</label>
+        <select id="cfg-pfx"><option value="true" selected>on</option><option value="false">off</option></select></div>
+      <div class="cfg"><label data-tip="Chunked prefill: long prompts are split into fixed-size chunks processed one per step, instead of one giant forward pass. Lowers peak memory and lets other requests decode between chunks.">Chunked Prefill</label>
+        <select id="cfg-chunk"><option value="true" selected>on</option><option value="false">off</option></select></div>
+      <div class="cfg"><label data-tip="Token chunk size used by chunked prefill.">Chunk Size</label><input type="number" id="cfg-chunksz" value="64" min="8" max="256"></div>
+      <div class="cfg"><label data-tip="Speculative decoding: a small draft model proposes K tokens; the main model verifies all K+1 positions in ONE forward pass. Accepts the longest matching prefix — multiple tokens per main-model step when the draft is accurate.">Speculative</label>
+        <select id="cfg-spec"><option value="false" selected>off</option><option value="true">on</option></select></div>
+      <div class="cfg"><label data-tip="K: number of tokens the draft model proposes per speculative step.">Spec K</label><input type="number" id="cfg-speck" value="4" min="1" max="8"></div>
+      <button class="btn" id="cfg-apply">Apply</button>
+    </div>
+  </div>
+
+  <div class="mrow" id="metrics-row"></div>
+
+  <div class="grid2">
+    <div class="panel">
+      <div class="ptitle"><span data-tip="Tokens generated per second over time, sampled every engine step. Continuous batching keeps this high; sequential mode shows dips between requests.">Live Throughput</span><span class="psub">tok/s vs time</span></div>
+      <canvas id="ch-tps"></canvas>
+    </div>
+    <div class="panel">
+      <div class="ptitle"><span data-tip="Decode batch size (bars) and waiting-queue depth (line) over time. Shows slots refilling under continuous batching.">Batch Size & Queue Depth</span><span class="psub">bars=batch · line=queue</span></div>
+      <canvas id="ch-batch"></canvas>
+    </div>
+    <div class="panel">
+      <div class="ptitle"><span data-tip="Process / MPS memory usage over time. Jumps during prefill and grows with KV cache length.">Memory Usage</span><span class="psub">MB vs time</span></div>
+      <canvas id="ch-mem"></canvas>
+    </div>
+    <div class="panel">
+      <div class="ptitle"><span data-tip="KV cache memory consumed by each active request, proportional to its sequence length. Bars fill as generation progresses and drain when a request finishes.">KV Cache Memory (per active request)</span><span class="psub" id="kv-sub">bytes/token = —</span></div>
+      <div id="kv-bars"><span style="color:var(--dim);font-size:.8rem">No active requests.</span></div>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="panel">
+      <div class="ptitle"><span data-tip="Active generation slots (one per batch position). Each card shows progress, TTFT, and KV sequence length.">Active Generation Slots</span><span class="psub">continuous batching status</span></div>
+      <div class="slots" id="slots"></div>
+      <div class="ptitle" style="margin-top:.6rem"><span data-tip="Requests admitted but still waiting, with prompt length and priority.">Waiting Queue</span></div>
+      <div class="wlist" id="waiting"></div>
+    </div>
+    <div class="panel">
+      <div class="ptitle"><span data-tip="Send a prompt to the engine; tokens stream back via SSE. Submit multiple times to build a concurrent batch. Use priority with the 'priority' scheduler.">LLM Playground</span><span class="psub">streams via SSE</span></div>
+      <input type="text" id="pp" value="Explain what a GPU is." placeholder="Enter a prompt..." style="width:100%;margin-bottom:.6rem">
+      <div class="row">
+        <div class="cfg"><label>Max Tokens</label><input type="number" id="pt" value="25" min="5" max="100"></div>
+        <div class="cfg"><label>Temp</label><input type="number" id="ptemp" value="0.7" step="0.1" min="0" max="1.5"></div>
+        <div class="cfg"><label data-tip="Higher priority requests are scheduled first under the 'priority' scheduler.">Priority</label><input type="number" id="pprio" value="0" min="0" max="10"></div>
+        <button class="btn" id="pb">Submit</button>
+      </div>
+      <div class="out"><div class="out-h"><span>Generated Text Stream</span><span id="pmeta">idle</span></div><div class="out-t" id="pout">Submit a prompt above to see tokens stream in real-time.</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== COMPARE PAGE ===================== -->
+<section class="page" id="pg-compare">
+  <div class="panel">
+    <div class="ptitle"><span data-tip="Runs the SAME workload across all three serving modes (sequential, static, continuous) and compares total time, throughput, TTFT and latency. Prefix cache is disabled during the run so every mode faces a cold prefill — a fair comparison of the serving strategy alone.">Comparative Study: Serving Modes</span><span class="psub">sequential vs static vs continuous</span></div>
+    <div class="note">This is the headline comparison. It isolates the effect of the batching strategy by holding the model, prompts, and precision constant.</div>
+    <div class="row" style="margin-top:.8rem">
+      <div class="cfg"><label data-tip="Number of concurrent prompts fired in each mode.">Concurrency</label><input type="number" id="cmp-n" value="6" min="2" max="12"></div>
+      <div class="cfg"><label>Max Tokens</label><input type="number" id="cmp-tok" value="20" min="5" max="60"></div>
+      <button class="btn" id="cmp-run">Run Comparison</button>
+      <span id="cmp-status" style="color:var(--dim);font-size:.78rem"></span>
+    </div>
+    <div id="cmp-out"></div>
+  </div>
+
+  <div class="panel">
+    <div class="ptitle"><span data-tip="Compare speculative decoding (on vs off). A small draft model proposes K tokens; the main model verifies them in one pass. Measures the throughput speedup when the draft is accurate.">Speculative Decoding: On vs Off</span><span class="psub">spec decode comparison</span></div>
+    <div class="note">Note: speculative decoding only fires on the single-request (batch=1) decode path. For a fair comparison it runs one prompt at a time.</div>
+    <div class="row" style="margin-top:.8rem">
+      <div class="cfg"><label>Prompt</label><input type="text" id="sp-prompt" value="Explain what a GPU is." style="width:260px"></div>
+      <div class="cfg"><label>Max Tokens</label><input type="number" id="sp-tok" value="30" min="5" max="80"></div>
+      <div class="cfg"><label>Spec K</label><input type="number" id="sp-k" value="4" min="1" max="8"></div>
+      <button class="btn" id="sp-run">Run Spec Comparison</button>
+      <span id="sp-status" style="color:var(--dim);font-size:.78rem"></span>
+    </div>
+    <div id="sp-out"></div>
+  </div>
+</section>
+
+<!-- ===================== SWEEPS PAGE ===================== -->
+<section class="page" id="pg-sweeps">
+  <div class="panel">
+    <div class="ptitle"><span data-tip="Sweeps the chunked-prefill chunk size and measures TTFT, throughput and peak memory. Smaller chunks lower per-step memory but add overhead; larger chunks amortise prefill cost. Find the TTFT/throughput sweet spot.">Chunk-Size Sweep</span><span class="psub">#9 — chunked prefill ablation</span></div>
+    <div class="row">
+      <div class="cfg"><label>Values (comma-sep)</label><input type="text" id="sw-chunk-v" value="16,32,64,128" style="width:180px"></div>
+      <div class="cfg"><label>Max Tokens</label><input type="number" id="sw-chunk-t" value="15" min="5" max="40"></div>
+      <button class="btn" id="sw-chunk-run">Run</button>
+      <span id="sw-chunk-status" style="color:var(--dim);font-size:.78rem"></span>
+    </div>
+    <div id="sw-chunk-out"></div>
+  </div>
+  <div class="panel">
+    <div class="ptitle"><span data-tip="Sweeps the maximum decode batch size. Larger batches raise system throughput but can increase per-request latency. Shows the throughput-vs-latency trade-off.">Batch-Size Sweep</span><span class="psub">#10 — max_batch_size ablation</span></div>
+    <div class="row">
+      <div class="cfg"><label>Values</label><input type="text" id="sw-batch-v" value="1,2,4,8" style="width:180px"></div>
+      <div class="cfg"><label>Max Tokens</label><input type="number" id="sw-batch-t" value="12" min="5" max="40"></div>
+      <div class="cfg"><label>Concurrency</label><input type="number" id="sw-batch-n" value="8" min="2" max="12"></div>
+      <button class="btn" id="sw-batch-run">Run</button>
+      <span id="sw-batch-status" style="color:var(--dim);font-size:.78rem"></span>
+    </div>
+    <div id="sw-batch-out"></div>
+  </div>
+  <div class="panel">
+    <div class="ptitle"><span data-tip="Sweeps the number of concurrent requests and plots system throughput vs concurrency. The 'knee' of the curve is the optimal operating point before latency explodes.">Concurrency Scaling Sweep</span><span class="psub">#11 — throughput vs load</span></div>
+    <div class="row">
+      <div class="cfg"><label>Values</label><input type="text" id="sw-conc-v" value="1,2,4,6,8" style="width:180px"></div>
+      <div class="cfg"><label>Max Tokens</label><input type="number" id="sw-conc-t" value="12" min="5" max="40"></div>
+      <button class="btn" id="sw-conc-run">Run</button>
+      <span id="sw-conc-status" style="color:var(--dim);font-size:.78rem"></span>
+    </div>
+    <div id="sw-conc-out"></div>
+  </div>
+</section>
+
+<!-- ===================== PHASES PAGE ===================== -->
+<section class="page" id="pg-phases">
+  <div class="panel">
+    <div class="ptitle"><span data-tip="Per-request Gantt chart. Each row is a request; amber = prefill phase, cyan = decode phase, green = prefix-cache hit (0 forward passes). Width = wall-clock duration. Reveals how continuous batching overlaps decode of many requests.">Per-Request Phase Gantt</span><span class="psub">prefill → decode timeline</span></div>
+    <div id="gantt"><span style="color:var(--dim);font-size:.8rem">No requests yet.</span></div>
+  </div>
+  <div class="panel">
+    <div class="ptitle"><span data-tip="Discrete time-step view of the active batch. Each column is one poll; pills show which requests occupied slots. Illustrates slot turnover under continuous batching.">Batch Timeline</span><span class="psub">per-step batch composition</span></div>
+    <div class="tl" id="tl"></div>
+  </div>
+  <div class="panel">
+    <div class="ptitle"><span data-tip="Recently completed requests with their final text and per-request metrics. Prefix-cache hits are badged.">Completed Request Logs</span><span class="psub">recent inference results</span></div>
+    <div id="clist" style="display:flex;flex-direction:column;gap:.6rem;max-height:300px;overflow-y:auto"></div>
+  </div>
+</section>
+
+<!-- ===================== ABOUT PAGE ===================== -->
+<section class="page" id="pg-about">
+  <div class="panel">
+    <div class="ptitle"><span>Implemented Features</span><span class="psub">what each does</span></div>
+    <div class="feat-grid">
+      <div class="feat"><div class="ic" style="background:rgba(6,182,212,.15);color:var(--cyan)">⚗</div><h3>Continuous Batching</h3><p>Token-level scheduling: free batch slots refill the instant a request finishes, keeping hardware utilisation high vs static batching.</p></div>
+      <div class="feat"><div class="ic" style="background:rgba(168,85,247,.15);color:var(--purple)">⚙</div><h3>Serving Modes</h3><p>Switch between sequential (batch=1), static (fixed group), and continuous to see the throughput difference live.</p></div>
+      <div class="feat"><div class="ic" style="background:rgba(16,185,129,.15);color:var(--green)">🎚</div><h3>Scheduler Policies</h3><p>FIFO, Shortest-Job-First, and Priority queue ordering — compare average waiting time under mixed workloads.</p></div>
+      <div class="feat"><div class="ic" style="background:rgba(245,158,11,.15);color:var(--yellow)">🗂</div><h3>Radix Prefix Cache</h3><p>Shared-prefix KV cache. Reuses keys/values across prompts that share a common head (e.g. system prompt), skipping re-prefill of the shared portion.</p></div>
+      <div class="feat"><div class="ic" style="background:rgba(239,68,68,.15);color:var(--red)">✂</div><h3>Chunked Prefill</h3><p>Long prompts are split into fixed-size chunks processed one per step — lower peak memory and better TTFT interleaving.</p></div>
+      <div class="feat"><div class="ic" style="background:rgba(59,130,246,.15);color:var(--blue)">⚡</div><h3>Speculative Decoding</h3><p>A small draft model proposes K tokens; the main model verifies them in one forward pass. Multiple tokens per step when the draft is accurate.</p></div>
+      <div class="feat"><div class="ic" style="background:rgba(236,72,153,.15);color:var(--pink)">🔧</div><h3>Quantization</h3><p>Toggle fp32 / fp16 / int8 weights and compare speed, memory and quality.</p></div>
+      <div class="feat"><div class="ic" style="background:rgba(6,182,212,.15);color:var(--cyan)">📈</div><h3>Live Observability</h3><p>Throughput, batch-size, queue-depth and memory timeseries + per-request Gantt + KV-cache memory bars.</p></div>
+      <div class="feat"><div class="ic" style="background:rgba(168,85,247,.15);color:var(--purple)">📊</div><h3>Sweep Suite</h3><p>One-click ablations over chunk size, batch size, and concurrency — produces comparison tables and bar charts.</p></div>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="ptitle"><span>How to use this lab</span></div>
+    <div class="note" style="margin-bottom:.6rem">1. <b>Live</b> — tune config, send prompts, watch real-time charts.<br>2. <b>Compare</b> — run the serving-mode and speculative-decoding head-to-head benchmarks.<br>3. <b>Sweeps</b> — ablate chunk size, batch size, concurrency; find the sweet spots.<br>4. <b>Phases</b> — inspect the Gantt timeline and completed logs.<br>5. Hover any label for an explanation of what it measures.</div>
+  </div>
+</section>
+</main>
+
+<script>
+const API="";
+let tlTicks=0; const colors={};
+function rc(id){if(colors[id])return colors[id];const p=[['#06b6d4','rgba(6,182,212,.15)','rgba(6,182,212,.3)'],['#a855f7','rgba(168,85,247,.15)','rgba(168,85,247,.3)'],['#10b981','rgba(16,185,129,.15)','rgba(16,185,129,.3)'],['#f59e0b','rgba(245,158,11,.15)','rgba(245,158,11,.3)'],['#ef4444','rgba(239,68,68,.15)','rgba(239,68,68,.3)'],['#3b82f6','rgba(59,130,246,.15)','rgba(59,130,246,.3)'],['#ec4899','rgba(236,72,153,.15)','rgba(236,72,153,.3)']];let h=0;for(let i=0;i<id.length;i++)h=id.charCodeAt(i)+((h<<5)-h);const c=p[Math.abs(h)%p.length];colors[id]={text:c[0],bg:c[1],border:c[2]};return colors[id]}
+
+/* nav */
+document.querySelectorAll('#nav button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#nav button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  b.classList.add('active');document.getElementById('pg-'+b.dataset.page).classList.add('active');
+});
+
+/* charts */
+function drawLine(cnv,data,key,color){const ctx=cnv.getContext('2d');const dpr=window.devicePixelRatio||1;const W=cnv.clientWidth,H=cnv.clientHeight;cnv.width=W*dpr;cnv.height=H*dpr;ctx.scale(dpr,dpr);ctx.clearRect(0,0,W,H);const pad={l:32,r:8,t:8,b:16};const v=data.map(d=>d[key]||0);const mx=Math.max(1,...v);ctx.strokeStyle='rgba(255,255,255,.06)';ctx.fillStyle='rgba(255,255,255,.3)';ctx.font='9px JetBrains Mono';ctx.textAlign='right';for(let i=0;i<=3;i++){const y=pad.t+(H-pad.t-pad.b)*i/3;ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(W-pad.r,y);ctx.stroke();ctx.fillText((mx*(1-i/3)).toFixed(0),pad.l-4,y+3)}if(v.length<2)return;const x=i=>pad.l+(W-pad.l-pad.r)*i/(v.length-1);const y=v=>pad.t+(H-pad.t-pad.b)*(1-v/mx);ctx.beginPath();ctx.moveTo(x(0),y(v[0]));for(let i=1;i<v.length;i++)ctx.lineTo(x(i),y(v[i]));ctx.lineTo(x(v.length-1),pad.t+(H-pad.t-pad.b));ctx.lineTo(x(0),pad.t+(H-pad.t-pad.b));ctx.closePath();ctx.fillStyle=color+'22';ctx.fill();ctx.beginPath();ctx.moveTo(x(0),y(v[0]));for(let i=1;i<v.length;i++)ctx.lineTo(x(i),y(v[i]));ctx.strokeStyle=color;ctx.lineWidth=1.8;ctx.stroke();ctx.beginPath();ctx.arc(x(v.length-1),y(v[v.length-1]),2.5,0,7);ctx.fillStyle=color;ctx.fill()}
+function drawBarsLine(cnv,data,bk,lk,bc,lc){const ctx=cnv.getContext('2d');const dpr=window.devicePixelRatio||1;const W=cnv.clientWidth,H=cnv.clientHeight;cnv.width=W*dpr;cnv.height=H*dpr;ctx.scale(dpr,dpr);ctx.clearRect(0,0,W,H);const pad={l:32,r:8,t:8,b:16};const bars=data.map(d=>d[bk]||0),lns=data.map(d=>d[lk]||0);const mx=Math.max(1,...bars,...lns);ctx.strokeStyle='rgba(255,255,255,.06)';ctx.fillStyle='rgba(255,255,255,.3)';ctx.font='9px JetBrains Mono';ctx.textAlign='right';for(let i=0;i<=3;i++){const y=pad.t+(H-pad.t-pad.b)*i/3;ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(W-pad.r,y);ctx.stroke();ctx.fillText((mx*(1-i/3)).toFixed(0),pad.l-4,y+3)}if(!data.length)return;const bw=(W-pad.l-pad.r)/data.length;const y=v=>pad.t+(H-pad.t-pad.b)*(1-v/mx);bars.forEach((b,i)=>{ctx.fillStyle=bc+'88';ctx.fillRect(pad.l+i*bw+1,y(b),bw-2,pad.t+(H-pad.t-pad.b)-y(b))});if(lns.length>1){ctx.beginPath();lns.forEach((v,i)=>{const x=pad.l+i*bw+bw/2;i?ctx.lineTo(x,y(v)):ctx.moveTo(x,y(v))});ctx.strokeStyle=lc;ctx.lineWidth=1.8;ctx.stroke()}}
+
+/* metrics cards */
+const METRICS_DEF=[
+  ['m-active','Active','data-tip="Requests currently being decoded (DECODE phase)."'],
+  ['m-queue','Queue','data-tip="Requests waiting in the queue, not yet admitted."'],
+  ['m-ttft','Avg TTFT','data-tip="Time-To-First-Token: avg seconds from arrival to first generated token."'],
+  ['m-tps','Throughput','data-tip="Instantaneous throughput: tokens generated in the last step / step duration (tok/s)."'],
+  ['m-mem','Memory','data-tip="Process resident memory (max RSS) or MPS allocated memory, whichever is larger."'],
+  ['m-pfx','Radix Hits','data-tip="Prefix cache hits / misses across all requests."'],
+  ['m-spec','Spec','data-tip="Speculative decoding status (on/off) and whether the draft model is loaded."'],
+  ['m-mode','Mode','data-tip="Current serving mode · scheduler · precision."'],
+];
+document.getElementById('metrics-row').innerHTML=METRICS_DEF.map(([id,l,tip])=>`<div class="mc"><span class="v" id="${id}">—</span><span class="l" ${tip}>${l}</span></div>`).join('');
+
+async function upd(){
+  try{
+    const [st,ts]=await Promise.all([fetch(API+'/status').then(r=>r.json()),fetch(API+'/timeseries').then(r=>r.json())]);
+    const m=st.metrics;
+    document.getElementById('hdr').textContent=`${m.mode} · ${m.scheduler} · ${m.precision}`;
+    document.getElementById('m-active').textContent=st.active.length;
+    document.getElementById('m-queue').textContent=st.waiting.length;
+    document.getElementById('m-ttft').textContent=m.avg_ttft.toFixed(2)+'s';
+    document.getElementById('m-tps').textContent=m.instant_throughput.toFixed(1);
+    document.getElementById('m-mem').textContent=m.memory_mb.toFixed(0)+'MB';
+    document.getElementById('m-pfx').textContent=`${m.prefix_cache_hits}/${m.prefix_cache_misses}`;
+    document.getElementById('m-spec').innerHTML=`<span class="tag ${m.speculative?'on':'off'}">${m.speculative?'on':'off'}</span>`;
+    document.getElementById('m-mode').innerHTML=`<span class="v tag">${m.mode}<br>${m.scheduler}/${m.precision}</span>`;
+    document.getElementById('kv-sub').textContent=`bytes/token = ${m.kv_bytes_per_token||0}`;
+    drawLine(document.getElementById('ch-tps'),ts,'throughput','#06b6d4');
+    drawBarsLine(document.getElementById('ch-batch'),ts,'batch_size','queue_depth','#a855f7','#f59e0b');
+    drawLine(document.getElementById('ch-mem'),ts,'memory_mb','#10b981');
+
+    // slots
+    const sc=document.getElementById('slots');sc.innerHTML='';
+    const maxSlots=Math.max(4,m.max_batch_size_cfg);
+    for(let i=0;i<maxSlots;i++){
+      if(i<st.active.length){const r=st.active[i];const pct=Math.min(100,Math.round((r.generated_count/r.max_tokens)*100));const c=rc(r.id);
+        const ph=r.status==='PREFILL'?'prefilling…':'decoding…';const pc=r.status==='PREFILL'?'var(--yellow)':'var(--cyan)';
+        const d=document.createElement('div');d.className='slot active';d.style.borderColor=c.border;
+        d.innerHTML=`<div class="sh"><span class="sid" style="color:${c.text}">${r.id.substring(0,10)}…</span><span class="sp">"${r.prompt}"</span><span style="font-family:'JetBrains Mono',monospace">${r.generated_count}/${r.max_tokens}</span></div>
+          <div class="bar"><i style="width:${pct}%;background:linear-gradient(90deg,${c.text},var(--purple))"></i></div>
+          <div class="sf"><span>TTFT: ${r.ttft?r.ttft.toFixed(3)+'s':'…'}</span><span>KV: ${r.prompt_kv_len}</span><span style="color:${pc}">${r.prefix_cache_hit?'[cache] ':''}${ph}</span></div>`;
+        sc.appendChild(d);
+      }else{const e=document.createElement('div');e.className='empty';e.textContent=`[Slot ${i} — Idle]`;sc.appendChild(e)}
+    }
+    // kv bars
+    const kv=document.getElementById('kv-bars');
+    if(!st.active.length)kv.innerHTML='<span style="color:var(--dim);font-size:.8rem">No active requests.</span>';
+    else{const mxKv=Math.max(...st.active.map(r=>r.kv_bytes),1);kv.innerHTML=st.active.map(r=>{const c=rc(r.id);const pct=Math.round(r.kv_bytes/mxKv*100);const kb=(r.kv_bytes/1024).toFixed(1);
+      return `<div class="kvrow"><span class="kid" style="color:${c.text}" data-tip="Request ${r.id}&#10;KV seq len: ${r.prompt_kv_len}&#10;Bytes: ${kb} KB">${r.id.substring(0,10)}…</span><div class="kvtrack"><i style="width:${pct}%;background:linear-gradient(90deg,${c.text},var(--cyan))"></i></div><span class="kvb">${kb} KB</span></div>`}).join('')}
+    // waiting
+    const w=document.getElementById('waiting');
+    w.innerHTML=!st.waiting.length?'<span style="color:var(--dim);font-size:.8rem">Queue empty</span>':st.waiting.map(x=>`<div class="pill"><span class="dot" style="background:var(--yellow);width:6px;height:6px"></span>${x.id.substring(0,8)} · ${x.seq_len}tok · p${x.priority}</div>`).join('');
+    // completed
+    const cl=document.getElementById('clist');
+    cl.innerHTML=!st.completed.length?'<span style="color:var(--dim);font-size:.8rem">No completed queries yet.</span>':st.completed.slice().reverse().map(c=>`<div style="background:rgba(255,255,255,.01);border:1px solid var(--border);border-radius:9px;padding:.65rem"><div style="font-size:.76rem;font-weight:600;color:var(--purple)">"${c.prompt}"${c.prefix_cache_hit?' <span class="tag on">cache</span>':''}</div><div style="font-family:JetBrains Mono;font-size:.76rem;color:#d1d5db;margin:.2rem 0">${c.generated}</div><div style="display:flex;gap:1rem;font-size:.66rem;color:var(--dim);flex-wrap:wrap"><span>${c.id.substring(0,10)}</span><span>${c.tokens_count} tok</span><span>TTFT ${c.ttft.toFixed(3)}s</span><span>lat ${c.latency.toFixed(2)}s</span><span>${c.tokens_sec.toFixed(1)} t/s</span></div></div>`).join('');
+    appendTL(st.active,st.waiting);
+  }catch(e){console.error(e)}
+}
+
+function appendTL(active,waiting){const c=document.getElementById('tl');if(c.children.length>18)c.removeChild(c.firstChild);const col=document.createElement('div');col.className='tstep';col.innerHTML=`<div class="th">t=${tlTicks}</div>`;const b=document.createElement('div');b.className='tbatch';
+  if(!active.length&&!waiting.length)b.innerHTML='<div style="color:rgba(255,255,255,.15);font-size:.6rem;margin-top:1rem">IDLE</div>';
+  else{active.forEach(a=>{const cc=rc(a.id);const p=document.createElement('div');p.className='tp';p.style.cssText=`background:${cc.bg};color:${cc.text};border:1px solid ${cc.border}`;p.textContent=a.id.substring(0,6);p.title=`${a.id}\n${a.prompt}\n${a.status}`;b.appendChild(p)});
+    if(waiting.length){const q=document.createElement('div');q.className='tp';q.style.cssText='background:rgba(245,158,11,.08);color:var(--yellow);border:1px solid rgba(245,158,11,.2)';q.textContent=`+${waiting.length}`;b.appendChild(q)}}
+  col.appendChild(b);c.appendChild(col);c.scrollLeft=c.scrollWidth;tlTicks++}
+
+/* gantt */
+async function updGantt(){try{const g=await fetch(API+'/gantt').then(r=>r.json());const el=document.getElementById('gantt');
+  if(!g.length){el.innerHTML='<span style="color:var(--dim);font-size:.8rem">No requests yet.</span>';return}
+  const tmin=Math.min(...g.map(r=>r.arrival_time));const tmax=Math.max(...g.map(r=>r.finish_time||(r.events[r.events.length-1]?.[0]||r.arrival_time)));const span=Math.max(tmax-tmin,1e-3);
+  el.innerHTML=g.map(r=>{const c=rc(r.id);const start=r.start_time||r.arrival_time;const pe=r.prefill_end_time||start;const fin=r.finish_time||(r.events[r.events.length-1]?.[0]||pe);
+    const x0=((start-tmin)/span*100).toFixed(2);const wP=Math.max(1.5,((pe-start)/span*100)).toFixed(2);const wD=Math.max(0,((fin-pe)/span*100)).toFixed(2);const xD=((pe-tmin)/span*100).toFixed(2);
+    return `<div class="grow"><span class="gid" data-tip="${r.id}&#10;${r.prompt}&#10;status: ${r.status}${r.prefix_cache_hit?'&#10;prefix-cache hit':''}">${r.id.substring(0,10)}…</span><div class="gtrack">
+      <div class="gseg" style="left:${x0}%;width:${wP}%;background:${r.prefix_cache_hit?'#10b981':'#f59e0b'}" data-tip="Prefill phase. ${r.prefix_cache_hit?'Prefix-cache hit — 0 forward passes.':''}"></div>
+      <div class="gseg" style="left:${xD}%;width:${wD}%;background:${c.text}" data-tip="Decode phase (token generation)."></div></div></div>`}).join('');
+}catch(e){console.error(e)}}
+
+/* playground */
+async function play(){const prompt=document.getElementById('pp').value,tok=document.getElementById('pt').value,temp=document.getElementById('ptemp').value,prio=document.getElementById('pprio').value;const out=document.getElementById('pout'),meta=document.getElementById('pmeta');if(!prompt.trim())return;out.className='out-t streaming';out.textContent='';meta.textContent='streaming…';
+  const url=`${API}/stream?prompt=${encodeURIComponent(prompt)}&max_tokens=${tok}&temperature=${temp}`;const t0=performance.now();let ttft=null;const es=new EventSource(url);
+  es.onmessage=e=>{if(ttft===null){ttft=(performance.now()-t0)/1000;meta.textContent=`TTFT ${ttft.toFixed(2)}s`};let t=e.data;if(t==='')t=' ';out.textContent+=t};
+  es.onerror=()=>{es.close();out.className='out-t';meta.textContent=`done · ${((performance.now()-t0)/1000).toFixed(1)}s`;upd()}}
+
+/* config apply */
+async function applyCfg(){const body={model_id:document.getElementById('cfg-model').value,mode:document.getElementById('cfg-mode').value,scheduler:document.getElementById('cfg-sched').value,max_batch_size:parseInt(document.getElementById('cfg-batch').value),precision:document.getElementById('cfg-prec').value,prefix_cache:document.getElementById('cfg-pfx').value==='true',chunked_prefill:document.getElementById('cfg-chunk').value==='true',chunk_size:parseInt(document.getElementById('cfg-chunksz').value),speculative:document.getElementById('cfg-spec').value==='true',spec_tokens:parseInt(document.getElementById('cfg-speck').value)};
+  await fetch(API+'/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});upd()}
+
+/* helpers for rendering results */
+function bars(title,items,color){let h=`<div class="sweep-result"><div style="font-size:.78rem;color:var(--dim);margin-bottom:.5rem">${title}</div>`;const mx=Math.max(...items.map(i=>i.v),1e-9);items.forEach(i=>{const pct=Math.round(i.v/mx*100);h+=`<div class="cb-row"><span class="cm">${i.label}</span><div class="cb-track"><i style="width:${pct}%;background:${color}"></i></div><span class="cv">${typeof i.v==='number'?i.v.toFixed(i.fp||1):i.v}</span></div>`});return h+'</div>'}
+
+/* compare modes */
+async function runCompare(){const n=parseInt(document.getElementById('cmp-n').value),tok=parseInt(document.getElementById('cmp-tok').value);const st=document.getElementById('cmp-status'),out=document.getElementById('cmp-out');st.textContent='running…';st.style.color='var(--yellow)';out.innerHTML='';
+  try{const res=await fetch(API+'/compare',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({concurrency:n,max_tokens:tok})}).then(r=>r.json());const rr=res.results;
+    const bestTp=Math.max(...rr.map(r=>r.throughput_tps)),bestLat=Math.min(...rr.map(r=>r.avg_latency_s)),bestTtft=Math.min(...rr.map(r=>r.avg_ttft_s)),bestTime=Math.min(...rr.map(r=>r.total_time_s));
+    let h='<table><tr><th>Mode</th><th>Total Time</th><th>Throughput</th><th>Avg TTFT</th><th>Avg Latency</th><th>Max Batch</th><th>Memory</th></tr>';
+    rr.forEach(r=>{h+=`<tr><td>${r.mode}</td><td class="${r.total_time_s===bestTime?'win':''}">${r.total_time_s}s</td><td class="${r.throughput_tps===bestTp?'win':''}">${r.throughput_tps} t/s</td><td class="${r.avg_ttft_s===bestTtft?'win':''}">${r.avg_ttft_s}s</td><td class="${r.avg_latency_s===bestLat?'win':''}">${r.avg_latency_s}s</td><td>${r.max_batch_seen}</td><td>${r.memory_mb}MB</td></tr>`});
+    h+='</table>';h+=bars('Throughput (tok/s) — higher is better',rr.map(r=>({label:r.mode,v:r.throughput_tps})),'#06b6d4');h+=bars('Avg TTFT (s) — lower is better',rr.map(r=>({label:r.mode,v:r.avg_ttft_s})),'#f59e0b');
+    out.innerHTML=h;st.textContent='done';st.style.color='var(--green)';upd();
+  }catch(e){st.textContent='error: '+e;st.style.color='var(--red)'}}
+
+/* speculative compare (run one prompt with spec off vs on) */
+async function runSpec(){const prompt=document.getElementById('sp-prompt').value,tok=parseInt(document.getElementById('sp-tok').value),k=parseInt(document.getElementById('sp-k').value);const st=document.getElementById('sp-status'),out=document.getElementById('sp-out');st.textContent='running…';st.style.color='var(--yellow)';out.innerHTML='';
+  async function one(spec){await fetch(API+'/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({speculative:spec,spec_tokens:k,mode:'sequential',max_batch_size:1})});const t0=performance.now();const r=await fetch(API+'/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt,max_tokens:tok,temperature:0})}).then(r=>r.json());return{time:(performance.now()-t0)/1000,ttps:r.metrics.tokens_sec,tok:r.metrics.tokens_generated,text:r.text}}
+  try{const off=await one(false);const on=await one(true);await fetch(API+'/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({speculative:false,mode:'continuous',max_batch_size:4})});
+    const items=[{label:'spec OFF',...off,spec:false},{label:'spec ON',...on,spec:true}];
+    const bestTps=Math.max(off.ttps,on.tps),bestTime=Math.min(off.time,on.time);
+    let h='<table><tr><th>Mode</th><th>Wall Time</th><th>Tokens</th><th>Throughput</th></tr>';
+    items.forEach(i=>{h+=`<tr><td>${i.label}</td><td class="${i.time===bestTime?'win':''}">${i.time.toFixed(2)}s</td><td>${i.tok}</td><td class="${i.ttps===bestTps?'win':''}">${i.ttps.toFixed(1)} t/s</td></tr>`});
+    h+='</table>';h+=bars('Decode throughput (tok/s)',[{label:'spec OFF',v:off.ttps},{label:'spec ON',v:on.ttps}],'#3b82f6');
+    h+=`<div class="note" style="margin-top:.6rem"><b>Output (spec ON):</b> ${on.text}</div>`;
+    out.innerHTML=h;st.textContent='done';st.style.color='var(--green)';upd();
+  }catch(e){st.textContent='error: '+e;st.style.color='var(--red)'}}
+
+/* generic sweep runner */
+async function runSweep(param,vId,tId,sId,oId,title,color,metricKey,metricLabel,lowerBetter){
+  const vals=document.getElementById(vId).value.split(',').map(s=>parseInt(s.trim())).filter(x=>!isNaN(x));const tok=parseInt(document.getElementById(tId).value);const st=document.getElementById(sId),out=document.getElementById(oId);st.textContent='running…';st.style.color='var(--yellow)';out.innerHTML='';
+  let conc=4;const nEl=document.getElementById(vId.replace('-v','-n'));if(nEl)conc=parseInt(nEl.value);
+  try{const res=await fetch(API+'/sweep',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({param,values:vals,max_tokens:tok,concurrency:conc})}).then(r=>r.json());
+    if(res.error){st.textContent=res.error;st.style.color='var(--red)';return}
+    const rr=res.results;const best=lowerBetter?Math.min(...rr.map(r=>r[metricKey])):Math.max(...rr.map(r=>r[metricKey]));
+    let h=`<table><tr><th>${param}</th><th>Total Time</th><th>Throughput</th><th>Avg TTFT</th><th>Avg Latency</th><th>Memory</th></tr>`;
+    rr.forEach(r=>{h+=`<tr><td>${r.value}</td><td>${r.total_time_s}s</td><td class="${r.throughput_tps===Math.max(...rr.map(x=>x.throughput_tps))?'win':''}">${r.throughput_tps} t/s</td><td>${r.avg_ttft_s}s</td><td>${r.avg_latency_s}s</td><td>${r.memory_mb}MB</td></tr>`});
+    h+='</table>';h+=bars(`${metricLabel} vs ${param}`,rr.map(r=>({label:String(r.value),v:r[metricKey]})),color);
+    out.innerHTML=h;st.textContent='done';st.style.color='var(--green)';upd();
+  }catch(e){st.textContent='error: '+e;st.style.color='var(--red)'}}
+
+/* binds */
+document.getElementById('cfg-apply').onclick=applyCfg;
+document.getElementById('pb').onclick=play;
+document.getElementById('cmp-run').onclick=runCompare;
+document.getElementById('sp-run').onclick=runSpec;
+document.getElementById('sw-chunk-run').onclick=()=>runSweep('chunk_size','sw-chunk-v','sw-chunk-t','sw-chunk-status','sw-chunk-out','chunk','#10b981','avg_ttft_s','TTFT (s)',true);
+document.getElementById('sw-batch-run').onclick=()=>runSweep('max_batch_size','sw-batch-v','sw-batch-t','sw-batch-status','sw-batch-out','batch','#a855f7','throughput_tps','Throughput (t/s)',false);
+document.getElementById('sw-conc-run').onclick=()=>runSweep('concurrency','sw-conc-v','sw-conc-t','sw-conc-status','sw-conc-out','concurrency','#06b6d4','throughput_tps','Throughput (t/s)',false);
+
+setInterval(upd,1000);setInterval(updGantt,2000);upd();updGantt();
+</script>
+</body>
+</html>
