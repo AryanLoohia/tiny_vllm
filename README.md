@@ -225,3 +225,9 @@ Functional and correct (KV rollback verified). Throughput gain depends on **draf
 - **NVIDIA GPU/CUDA/Triton**: optimized for Apple Silicon and standard PyTorch.
 - **Distributed serving / Tensor Parallelism / Pipeline Parallelism**: omitted for single-node simplicity.
 - **Complex UI libraries / CSS frameworks**: uses simple vanilla HTML/CSS/JS.
+
+
+inside artifacts, add these things under a folder assets
+1) geneate the grpahs for all 4 bases test cases given at t=0 on the same page
+2) genrtae all th ecases at t=200 , and plot main nn + mcl, main nn , exxact, all 4 in tha same page, each grpah with 3 lines represtnig each
+3) the above but for t=1000 now

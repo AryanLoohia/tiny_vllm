@@ -1,19 +1,18 @@
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
-class LLMModel:
-    """
-    Wraps the Hugging Face model and tokenizer, abstracting hardware device
-    selection (MPS/CPU) and basic tokenization operations.
 
-    Precision modes (`precision`):
-      - "fp32":  Default full-precision weights.
-      - "fp16":  Half-precision weights (smaller memory, faster on MPS).
-      - "int8":  Dynamic 8-bit quantization of nn.Linear layers (CPU fallback
-                 friendly; demonstrates a quantization comparison).
+class LLMModel:
+    """A thin wrapper around a HuggingFace model + tokenizer.
+
+    Handles device selection (MPS on Apple Silicon, CPU otherwise) and the
+    precision modes:
+      - "fp32": full precision (default)
+      - "fp16": half precision (smaller, faster on MPS)
+      - "int8": dynamic 8-bit quantization of Linear layers
     """
-    def __init__(self, model_id: str = "HuggingFaceTB/SmolLM2-135M-Instruct",
-                 precision: str = "fp32"):
+
+    def __init__(self, model_id="HuggingFaceTB/SmolLM2-135M-Instruct", precision="fp32"):
         self.model_id = model_id
         self.precision = precision
         self.device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
@@ -30,6 +29,7 @@ class LLMModel:
             kwargs["torch_dtype"] = torch.float32
 
         self.model = AutoModelForCausalLM.from_pretrained(self.model_id, **kwargs)
+
         if self.precision == "fp16":
             try:
                 self.model = self.model.to(self.device, dtype=torch.float16)
@@ -39,7 +39,6 @@ class LLMModel:
             self.model = self.model.to(self.device)
 
         if self.precision == "int8":
-            # Dynamic quantization of Linear layers (works on CPU; falls back gracefully)
             try:
                 self.model = torch.ao.quantization.quantize_dynamic(
                     self.model, {torch.nn.Linear}, dtype=torch.qint8
@@ -47,9 +46,10 @@ class LLMModel:
             except Exception as e:
                 print(f"[MODEL] int8 quantization unavailable, using fp32: {e}")
                 self.precision = "fp32"
+
         self.model.eval()
 
-    def reload(self, precision: str = None, model_id: str = None):
+    def reload(self, precision=None, model_id=None):
         """Reload the model, optionally with a new precision and/or model id."""
         if precision is not None:
             self.precision = precision
@@ -59,20 +59,23 @@ class LLMModel:
         self._load_model()
         print(f"[MODEL] Reloaded model_id={self.model_id} precision={self.precision}")
 
-    def tokenize(self, text: str, format_chat: bool = True) -> list[int]:
+    def tokenize(self, text, format_chat=True):
+        """Turn a string into a flat list of token ids."""
         tokens = None
         if format_chat:
             try:
                 tokens = self.tokenizer.apply_chat_template(
                     [{"role": "user", "content": text}],
                     add_generation_prompt=True,
-                    tokenize=True
+                    tokenize=True,
                 )
             except Exception:
-                pass
+                tokens = None
+
         if tokens is None:
             tokens = self.tokenizer.encode(text)
 
+        # Normalise whatever HF gave us into a flat list of ints.
         if isinstance(tokens, dict) or hasattr(tokens, "keys"):
             if "input_ids" in tokens:
                 tokens = tokens["input_ids"]
@@ -86,17 +89,17 @@ class LLMModel:
             tokens = self.tokenizer.encode(tokens)
         return tokens
 
-    def decode_token(self, token_id: int) -> str:
+    def decode_token(self, token_id):
         return self.tokenizer.decode([token_id])
 
-    def decode_tokens(self, token_ids: list[int]) -> str:
+    def decode_tokens(self, token_ids):
         return self.tokenizer.decode(token_ids)
 
-    def get_eos_token_id(self) -> int:
+    def get_eos_token_id(self):
         return self.tokenizer.eos_token_id
 
-    def kv_bytes_per_token(self) -> int:
-        """Bytes of KV cache memory consumed per generated token, per request."""
+    def kv_bytes_per_token(self):
+        """Bytes of KV cache memory used per generated token, per request."""
         try:
             cfg = self.model.config
             num_layers = cfg.num_hidden_layers
